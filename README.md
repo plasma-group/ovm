@@ -12,7 +12,7 @@ There are two major components:
 ## Getting Started
 Do you want to...
 
-#### Learn more about the OVM?
+### Learn more about the OVM?
 You've come to the right place... or at least you've come to the right place to navigate to the right place! Here are some resources to wet your OVM appetite:
 
 0. [Introducing the OVM](https://medium.com/plasma-group/introducing-the-ovm-db253287af50)
@@ -23,26 +23,26 @@ You've come to the right place... or at least you've come to the right place to 
 0. [Development Direction to the L2 Interoperability](https://medium.com/cryptoeconomics-lab/cel-development-direction-to-the-greater-abstraction-6860f87ce0eb)
 0. Plase submit a PR with more resources as you come across them!
 
-##### Ask questions?
+#### Ask questions?
 The place to ask questions about the OVM is:
 
 [**https://plasma.build/**](https://plasma.build/)
 
 You'll find a group of folks that are objectively super duper cool and that, more likely than not, would love to answer your questions :)
 
-##### Implement the OVM?
+#### Implement the OVM?
 Yes please! First step is see if you'd like to contribute to any one of the major implementations:
 - Referene OVM implementation
 - Rust OVM implementation
 
 If you're looking for another 
 
-##### Build a scalable blockchain application?
+#### Build a scalable blockchain application?
 Soon! And without so much heartache!
 
 Developers should not need to learn what a "markle tree" is in order to write a performant & secure application. Instead they should focus on application logic & make use of standard layer 2 backends which scale their usecase.
 
-##### Integrate the OVM into your wallet?
+#### Integrate the OVM into your wallet?
 The OVM is under active development & at this point should not be integrated into any wallets. However, soon the OVM will provide wallets a common interface for querying & managing layer 2 assets. The OVM acts as a cryptoeconomic light clients for layer 2--enabling layer 2 transaction signing & asset managment.
 
 ## Contributing
