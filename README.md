@@ -38,7 +38,7 @@ Yes please! First step is see if you'd like to contribute to any one of the majo
 If you're looking for another 
 
 ### Build a scalable blockchain application?
-Soon! And without so much heartache!
+Soon! And without so much headache!
 
 Developers should not need to learn what a "markle tree" is in order to write a performant & secure application. Instead they should focus on application logic & make use of standard layer 2 backends which scale their usecase.
 
