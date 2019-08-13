@@ -7,7 +7,7 @@ The OVM is a virtual machine designed to support all layer 2 (L2) protocols. Its
 There are two major components:
 
 1. Universal Adjudication Contracts--Ethereum smart contracts which are capible of adjudicating any multi-party dispute.
-2. Client-side OVM "smart wallet"--Local VM which optimistically evaluates these on-chain disputes & locally determines the result, enabling L2 scalability.
+2. OVM engine--Local OVM engine which optimistically evaluates these on-chain disputes & locally determines the result, enabling L2 scalability.
 
 ## Getting Started
 Do you want to...
