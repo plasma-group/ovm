@@ -40,7 +40,7 @@ If you're looking for another
 ### Build a scalable blockchain application?
 Soon! And without so much headache!
 
-Developers should not need to learn what a "markle tree" is in order to write a performant & secure application. Instead they should focus on application logic & make use of standard layer 2 backends which scale their usecase.
+Developers should not need to learn what a "markle tree" is in order to write a performant & secure application! Instead we should focus on application logic & make use of standard layer 2 backends.
 
 ### Integrate the OVM into your wallet?
 The OVM is under active development & at this point should not be integrated into any wallets. However, soon the OVM will provide wallets a common interface for querying & managing layer 2 assets. The OVM acts as a cryptoeconomic light clients for layer 2--enabling layer 2 transaction signing & asset managment.
