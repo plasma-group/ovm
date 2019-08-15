@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2017",
+    "declaration": true,
+    "noImplicitAny": false,
+    "removeComments": true,
+    "noLib": false,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "sourceMap": true,
+    "outDir": "build",
+    "lib": [
+      "es7"
+    ],
+    "typeRoots": [
+      "node_modules/@pigi/types/types",
+      "node_modules/@types"
+    ],
+    "resolveJsonModule": true
+  }
+}

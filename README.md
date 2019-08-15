@@ -18,7 +18,7 @@ You've come to the right place... or at least you've come to the right place to 
 0. [Introducing the OVM](https://medium.com/plasma-group/introducing-the-ovm-db253287af50)
 0. [OVM Layer 2 Constructions](this-repo)
 0. [Universal Adjudication Contract](this-repo)
-0. [Reference OVM Implementation](this-repo)
+0. [Reference OVM Implementation](https://github.com/plasma-group/pigi)
 0. [Rust OVM Implementation](https://github.com/cryptoeconomicslab/plasma-rust-framework)
 0. [Development Direction to the L2 Interoperability](https://medium.com/cryptoeconomics-lab/cel-development-direction-to-the-greater-abstraction-6860f87ce0eb)
 0. Plase submit a PR with more resources as you come across them!
