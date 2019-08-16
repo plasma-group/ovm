@@ -16,8 +16,8 @@ Do you want to...
 You've come to the right place... or at least you've come to the right place to navigate to the right place! Here are some resources to wet your OVM appetite:
 
 0. [Introducing the OVM](https://medium.com/plasma-group/introducing-the-ovm-db253287af50)
-0. [OVM Layer 2 Constructions](this-repo)
-0. [Universal Adjudication Contract](this-repo)
+0. [OVM Layer 2 Constructions](https://github.com/plasma-group/ovm/tree/master/specs#ovm-layer-2-constructions)
+0. [Universal Adjudication Contract](https://github.com/plasma-group/ovm/tree/master/contracts)
 0. [Reference OVM Implementation](https://github.com/plasma-group/pigi)
 0. [Rust OVM Implementation](https://github.com/cryptoeconomicslab/plasma-rust-framework)
 0. [Development Direction to the L2 Interoperability](https://medium.com/cryptoeconomics-lab/cel-development-direction-to-the-greater-abstraction-6860f87ce0eb)
