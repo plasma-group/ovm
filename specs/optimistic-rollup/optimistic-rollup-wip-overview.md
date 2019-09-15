@@ -1,302 +1,144 @@
-# Optimistic Rollup: Smart Contracts in L2
-This post outlines optimistic rollup: a construction which enables autonomous smart contracts on layer 2 using the [OVM](https://medium.com/plasma-group/introducing-the-ovm-db253287af50). Optimistic rollup barrows heavily from both plasma and rollup designs, and builds on [shadow chains](https://blog.ethereum.org/2014/09/17/scalability-part-1-building-top/) as described by Vitalik. This construction resembles plasma but trades off some scalability to enable fully general (eg. Solidity) smart contracts to be run in layer 2, secured by layer 1. The scalability bottleneck present here but not in plasma is the bandwidth of the rollup data availability oracle. However, this can be mitigated using other data availability oracles like Eth2 or even [Bitcoin Cash](https://ethresear.ch/t/bitcoin-cash-a-short-term-data-availability-layer-for-ethereum/5735), providing a near term scalable EVM-like chain in layer 2.
+# Ethereum Smart Contracts in L2: Optimistic Rollup
+This post outlines optimistic rollup: a construction which enables autonomous smart contracts on layer 2 using the [OVM](https://medium.com/plasma-group/introducing-the-ovm-db253287af50). The construction borrows heavily from both plasma and zkRollup designs, and builds on [shadow chains](https://blog.ethereum.org/2014/09/17/scalability-part-1-building-top/) as described by Vitalik. This construction resembles plasma but trades off some scalability to enable running fully general (eg. Solidity) smart contracts in layer 2, secured by layer 1. Scalability is proportional to the bandwidth of data availability oracles which include Eth1, Eth2, or even [Bitcoin Cash or ETC](https://ethresear.ch/t/bitcoin-cash-a-short-term-data-availability-layer-for-ethereum/5735)--providing a near term scalable EVM-like chain in layer 2.
 
-## Overview
-To provide intuitions for how optimistic rollup works, we will chronicle the life of a smart contract named Sam:
+## Quick Overview
+Let's start with some intuitions for how optimistic rollup works end to end on mainnet Ethereum, then dive in deep.
 
-1. Developer writes a Solidity contract, Sam.
-2. Developer sends transaction to a bonded **aggregator** which deploys the contract. 
-    - Fees are paid however the aggregator wants.
-    - There are multiple aggregators per-chain.
+The following is a chronicle of the life of an optimistic rollup smart contract... named Fred:
+
+1. Developer writes a Solidity contract named Fred. Hello Fred!
+2. Developer sends transaction off-chain to a bonded **aggregator** (a layer 2 block producer) which deploys the contract. 
+    - Fees are paid however the aggregator wants (account abstraction / meta transactions).
+    - There are multiple aggregators on the same chain.
     - Developer gets an instant guarantee that the transaction will be included or else the aggregator loses their bond.
-4. Aggregator computes the new state root after applying the transaction.
-5. Aggregator submits an Ethereum transaction (paying gas) which contains the transaction & state root (an optimistic rollup block).
-6. If **anyone** downloads the block & finds that it is invalid, they may prove the invalidity with `verify_state_transition(prev_block, block)` which:
+3. Aggregator locally applies the transaction & computes the new state root.
+4. Aggregator submits an Ethereum transaction (paying gas) which contains the transaction & state root (an optimistic rollup block).
+5. If **anyone** downloads the block & finds that it is invalid, they may prove the invalidity with `verify_state_transition(prev_state, block, witness)` which:
     - Slashes the malicious aggregator & any aggregator who built on top of the invalid block.
     - Rewards the prover with the aggregator bond.
-7. Sam the smart contract is safe happy & secure knowing her deployment transaction is now a part of every valid future optimistic rollup state (assuming Ethereum mainnet doesn't revert). Yay!
+6. Fred the smart contract is safe, happy & secure knowing her deployment transaction is now a part of every valid future optimistic rollup state. Plus Fred can be sent mainnet ERC20's deposited into L2! Yay!
 
-You'll see through this example that optimistic rollup resembles Ethereum mainnet today. Still, it's important to review how we we can get to a construction so similar to L1, and even what what L1 gives us today.
+That's it! The behavior of users & smart contracts should be very similar to what we see today on Ethereum mainnet, except, it scales! Now let's explore how this whole thing is possible.
 
-## Optimistic Rollup Security Analysis
-Any blockchain state machine should provide the following three guarentees:
+## Optimistic Rollup In Depth
+To begin let's define what it means to create a permissionless smart contract platform like Ethereum. There are three properties we must satisfy to build one of these lovely state machines:
 
 1. **Available head state** -- Any relevant party can download the current head state.
-2. **Valid head state** -- The head state is valid.
+2. **Valid head state** -- The head state is valid (eg. no invalid state transitions).
 3. **Live head state** -- Any interested party can submit transactions which transition the head state.
 
-You'll notice that Ethereum layer 1 satisfies these three properties because 1) miners do not mine on unavailable blocks, 2) miners do not mine on invalid blocks*; and 3) we believe layer 1 does not censor transactions. However, unfortunately for us, layer 1 doesn't currently scale.
+You'll notice that Ethereum layer 1 satisfies these three properties because we believe 1) miners do not mine on unavailable blocks, 2) miners do not mine on invalid blocks[*](https://eprint.iacr.org/2015/702.pdf); and 3) not all miners will censor transactions. However, it doesn't currently scale.
 
-Thankfully, under some light security assumptions optimistic rollup provides all three guarentees--enough to serve as a public EVM/WASM enabled state machine for running smart contracts at scale. To understand the construction & security assumptions we'll go over each property we'd like to ensure individually.
+On the other hand, under some light security assumptions, optimistic rollup can scale while providing all three guarantees. To understand the construction & security assumptions we'll go over each property we'd like to ensure individually.
 
-### Available head state
-Optimistic rollup uses classic rollup techniques ([first outlined here](https://ethresear.ch/t/on-chain-scaling-to-potentially-500-tx-sec-through-mass-tx-validation/3477)) to ensure data availability of the current state. The technique is simple--block producers (called aggregators) pass all blocks which include transactions & state roots through calldata (ie. the input to an Ethereum function) on Ethereum mainnet. The calldata block is then merklized & a single state root is stored. This ensures that the data is available without incurring the high gas cost of state storage. It is also notable that the gas cost of calldata will be reduced by almost 5x in the [Istanbul hard fork](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1679.md).
+### #1: Available head state
+Optimistic rollup uses classic rollup techniques ([first outlined here](https://ethresear.ch/t/on-chain-scaling-to-potentially-500-tx-sec-through-mass-tx-validation/3477)) to ensure data availability of the current state. The technique is simple--block producers (called aggregators) pass all blocks which include transactions & state roots through calldata (ie. the input to an Ethereum function) on Ethereum mainnet. The calldata block is then merklized & a single state root is stored. This ensures that the data is available without incurring the high gas cost of state storage. Additionally, the gas cost of calldata will be reduced by almost 5x in the [Istanbul hard fork](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1679.md).
 
-Notably, we can use data availability oracles other than the Ethereum mainnet, including Bitcoin Cash and Eth2. With Eth2 phase 1, data availability is going to be _cheap_ and so data availability will be much less of a bottleneck.
+Notably, we can use data availability oracles other than the Ethereum mainnet [including Bitcoin Cash](https://ethresear.ch/t/bitcoin-cash-a-short-term-data-availability-layer-for-ethereum/5735) and Eth2. With Eth2 phase 1 all shards can serve as data availability oracles, scaling TPS linearly in the number of shards. This is enough throughput that we will hit other scalability bottlenecks before we run out of available data, for example state computation.
 
-With all transactions and state roots made available anyone can download the current head state, satisfying property #1.
-
-#### Security Assumption
+#### Security Assumptions
 Here we assume honest majority on Ethereum mainchain. In addition, if we use Eth2 or Bitcoin Cash, we similarly inherit their honest majority assumptions.
 
+##### Under these assumptions, using a trusted availability oracle to publish all transactions we can ensure that anyone can compute the current head state, satisfying property #1.
 
-### Valid head state
-The next property we need to ensure is a vaild head state. In zkRollup we use zero-knowledge proofs to ensure the head state is valid. While this is a great solution in the long term, for now it is not possible to create efficient zkProofs for arbitrary state transitions. However, there's still hope for a general purpose EVM-style state machine! We can use a cryptoeconomic validity game similar to plasma / truebit.
+### #2: Valid head state
+The next property we need to ensure is a valid head state. In zkRollup we use zero-knowledge proofs to ensure validity. While this is a great solution in the long term, for now it is not possible to create efficient zkProofs for arbitrary state transitions. However, there's still hope for a general purpose EVM-style state machine! We can use a cryptoeconomic validity game similar to plasma / truebit.
 
 #### Cryptoeconomic Validity Game
 At a high level the block submission & validity game is as follows:
 
-1. Aggregators (eg. block producers) post a security deposit to start producing blocks.
+1. Aggregators post a security deposit to start producing blocks.
 2. Each block contains `[access_list, transactions, post_state_root]`.
 3. All blocks are committed to a `ROLLUP_CHAIN` contract by a bonded aggregator.
-4. **Anyone** may prove a block invalid, *winning the security deposit of the aggregator*.
+4. **Anyone** may prove a block invalid, *winning a portion of the aggregator's security deposit*.
 
 To prove a block invalid you must prove one of the three following properties:
 
 ```
-1. The committed block is *invalid*. 
-   This is calculated with `isValidTransition(prev_state, block) => boolean`
-2. The committed block "skipped" a valid block.
-3. The committed block's parent is invalid.
+1. INVALID_BLOCK: The committed block is *invalid*. 
+   This is calculated with `is_valid_transition(prev_state, block, witness) => boolean`
+2. SKIPPED_VALID_BLOCK: The committed block "skipped" a valid block.
+3. INVALID_PARENT: The committed block's parent is invalid.
 ```
 
-These three state transition rules can be visualized as:
+These three state transition validity conditions can be visualized as:
 
-![](https://i.imgur.com/eFz8Dzw.jpg)
+![](https://i.imgur.com/2KSNPuE.png)
 
-##### Validity Checkers
-Validity checkers for `isValidTransition(...)` are pluggable. It is even possible to use multiple validity checkers for the same chain! Examples of validity checkers include:
-1. Custom subsets of the EVM
-2. Full EVM
-3. WASM
-4. ...whatever!
 
-##### "Skipped" Blocks
-Aggregators are able to skip blocks which they believe are invalid. These are not the same sort of forks which are common on the mainchain. Because Ethereum mainnet gives us a total ordering of blocks and we disallow skipping valid blocks, users able to deterministically calculate what the **valid** head state is. This determination is done 'optimistically,' meaning the client can compute the valid head state before mainnet is aware of an invalid block.
+There are a few interesting properties that fall out of this state validity game:
 
-##### Sharding the State with UTXOs
-We can use a UTXO model to shard state validation (similar to how Plasma Cash sharded state validation). UTXOs allow for the verification & invalidation of independent state transition histories. This means we can validate only UTXOs for contracts we care about to secure our state. Exciting! To learn more about how UTXOs enable parallelism [check out this Cryptoeconomics.study video!](https://www.youtube.com/watch?v=-xoCoZGJ9AQ).
+1. **Pluggable validity checkers**: We can define different validity checkers for `is_valid_transition(...)` allowing us to use different VMs to run smart contracts including EVM and WASM.
+2. **Only one valid fork**: Blocks are submitted to Ethereum which gives us a total ordering of transactions & blocks. This enables us to deterministically decide the "head" block. We allow forking of the chain but **only** under the condition that the fork is "skipping" invalid blocks. This property is enforced with validity condition #2 and #3.
+3. **Sharded validation**: This validity game can be played out at an individual UTXO basis. Instead of invalidating full blocks, we partially invalidate them--similar to Plasma Cash. Note that this **does not** require proving all invalid transitions up front for a single block. Partial block invalidation means we can validate only UTXOs for contracts we care about to secure our state. To learn more about how UTXOs enable parallelism [check out this Cryptoeconomics.study video!](https://www.youtube.com/watch?v=-xoCoZGJ9AQ)
 
-##### Cryptoeconomic Light Clients
-
+##### A Note on Watchtowers
+One challenge to adoption of L2 has been the added complexity of [watchtowers](https://blockonomi.com/watchtowers-bitcoin-lightning-network/). Users contracting watchtowers adds yet another entity to manage to an already complex system. Thankfully, watchtowers are naturally incentivized by the optimistic rollup cryptoeconomic validity game! All data is available & therefore anyone running a full node stands to gain the security bond of **all** aggregators who build on their invalid chain. This risk incentivizes aggregators to be watchtowers, validating the chain they are building on--mitigating the verifiers dilemma.
 
 ##### A Note on Plasma
-Many plasma constructions also rely on this approach; however, in plasma state enforcement is impossible without a [fishermen's game](https://github.com/ethereum/research/wiki/A-note-on-data-availability-and-erasure-coding#what-is-the-data-availability-problem) during a data withholding attack (the data availability problem). Thankfully rollup gets around the data availability problem by simply posting everything on-chain and so, in a sense, we can use a plasma
+Many plasma constructions also rely on cryptoeconomic validity games; however, in plasma autonomous smart contract state enforcement is impossible without zkProofs or a [fishermen's game](https://github.com/ethereum/research/wiki/A-note-on-data-availability-and-erasure-coding#what-is-the-data-availability-problem) during a data withholding attack (the data availability problem). Thankfully rollup gets around the data availability problem by simply posting everything on-chain. Still, plasma is critical if we want to scale up to transactions per second in the hundreds of thousands.
 
+#### Security Assumptions
+1. This cryptoeconomic validity game requires **a single rational verifier** assumption. We can say it is a "rational" verifier as opposed to "honest" because they are economically incentivized by the forfeiture of the aggregator bond to prove invalidity.
+2. Additionally we assume the mainnet is *live*, meaning it is not censoring all incoming transactions attempting to prove invalidity. Note that the aggregator unbonding period is in some sense the liveness assumption on the mainnet (eg. if we require a 1 month unbonding period, then invalidity must be proven within that month to forfeit that bond).
 
+##### Under these assumptions, all invalid blocks / state transitions will be discarded leaving us with a *single* valid head state, satisfying property #2.
 
-# WORK IN PROGRESS...
-Will finish this soon!
+### #3: Live Head State
+The final property we must satisfy is liveness, often known as censorship resistance. The key insights which ensures this are:
 
----
+1. Anyone with a bond size above `MINIMUM_BOND_SIZE` may become an aggregator for the same rollup chain.
+2. Because honest aggregators may fork away from invalid blocks, the chain **does not halt** in the event of an invalid block.
 
-This post extends https://plasma.build/t/rollup-plasma-for-mass-exits-complex-disputes/90/21 to describe a scheme, optimistic rollup, which enables autonomous smart contracts on L2 using the [OVM](https://medium.com/plasma-group/introducing-the-ovm-db253287af50). It also compares optimistic rollup to plasma, including why using an availability oracle gives you smart contracting capabilities similar to those on Ethereum today but much improved scale. Lastly it describes how rollup fits into the OVM as the third component to the currently explored layer 2 stack.
+With these two properties we've already got liveness! Honest aggregators may always submit blocks which fork around invalid blocks & so even if there's just one non-censoring aggregator your transaction will eventually get through--similar to mainnet.
 
+##### A Note on Liveness vs Instant Confirmations
+One property we really want is instant confirmations. This way we can give users sub-second feedback that their transaction will be processed. We can achieve this by designating short-lived aggregator monopolies on blocks. The downside is that it trades off censorship resistance because now a single party can censor for some period of time. Would love to hear about any research on this tradeoff!
 
+#### Security Assumptions
+With two security assumptions we get liveness:
+1. There exists a non-censoring aggregator.
+2. Mainnet Ethereum is not censoring.
 
-L2 smart contracts are possible through the use of a data availability oracle to get around data withholding attacks--a major limiting factor in plasma designs. Then 
+##### Under these assumptions, the optimistic rollup chain will be able to progress & mutate the head state based on any valid user transactions, satisfying property #3.
 
-In addition, optimistic rollup's security properties are so similar to L1 that it can host adjudication contracts for plasma & state channels.
+> Now all three properties are satisfied & we've got a permissionless smart contract platform in Ethereum L2!
 
-With the advent of 
+## Scalability Metrics
+The following estimates are **purely based on data availability**. In practice other bottlenecks could be hit, one being state calculation. However, this does provide a useful upper bound.
 
-## Motivation
-Through building Plasma we've had to explore the design space of secure computation on top of a slow top level blockchain. One property we discovered is the relationship between the authority to transition state & the enforcement of the validity of the state in the context of data withholding.
+### ERC20 Transfers with ETH1 Data availability
+[Calculations are based on this little call-data calculation python script](https://gist.github.com/karlfloersch/1bf6ab7871f41e3a5a921c0a007ad5c6)
 
+Note that these ERC20 transfers are calldata optimized. Additionally note that the nice thing about Optimistic Rollup is we aren't limited to ERC20 transfers!
 
-## Background
+#### ECDSA Signature
+- ~100 TPS without EIP 2028
+- ~450 TPS with EIP 2028 (coming in October 2019)
 
-Why are we reviewing this?
-
-![](https://i.imgur.com/T700dPg.png)
-
-### Let's Review Etherem's State Transition Function
-
-![](https://i.imgur.com/JWWV8SQ.png)
-
-### Committing to Multiple State Machines
-
-![](https://i.imgur.com/mDoIwEH.png)
-
-### Verifying State
-
-![](https://i.imgur.com/6DaXpL9.png)
-
-## Exploring the Design Space
-As we've built Plasma we realized the design space for L2 
-
-### Plasma vs Optimistic Rollup
-
-![](https://i.imgur.com/gRqBh9n.png)
-
-
-# Adding a Cryptoeconomic Validity Game Part 1: Universal Dispute Contract
-We can use this foundation to build a validity game which allows for cryptoeconomic light-clients on top of optimistic rollup. This allows us to create a "validity" oracle that uses bonded validators to incentivize invalid states to be pruned.
-
-In order to make this formulation of layer 2 useful, we created a smart contract which interprets "claims" and is able to make inferences based on the claim contents. This will allow us to express all these layer 2 protocols in the same language which is directly interpreted on & off chain.
-
-The details of this contract are specified here: https://hackmd.io/@aTTDQ4GiRVyyce6trnsfpg/S1yGmXVxB
-
-At a high level, this contract simply makes decisions on claims by evaluating logical implications, contradictions, and proofs.
-
-## Adjudication Contract Logical Foundations
-
-Let's review what these claims, implications, contradictions, and proofs look like with an intuitive example.
-
-We start with the following **claim**:
-
-> It is raining.
-
-Notice that the claim `It is raining` **implies** at least two sub-claims:
-
-> 1. It is cloudy.
-> 2. The ground is wet.
-
-Further, notice that there are at least 3 claims which would **contradict** the initial claim of `It is raining`. These are:
-
-> 1. It is NOT raining.
-> 2. It is NOT cloudy.
-> 3. The ground is NOT wet.
-
-Now, armed with this understanding let's introduce the Universal Decision Contract (UDC). The UDC is a smart contract which evaluates these logical expressions and makes decisions based on claims & evidence submitted.
-
-### Example Adjudication Process
-We will use the above claim of `It is raining.` to review the process the UDC follows for all of it's decision making. In this case, Mallory will claim it is raining when really it's a sunny day.
-
-1. Mallory submits a claim `It is raining`.
-2. The UDC begins a dispute peroid where anyone can dispute this claim. If no one disputes after the allotted dispute peroid, the claim will be decided TRUE.
-3. Alice sees Mallory's claim & looks outside. Oh no Mallory was lying! It's a bright and sunny day! She's got to prove this malicious claim FALSE!
-4. Alice knows that if it's raining, it must be cloudy. Therefore all Alice must do to disprove Mallory's claim is take a photo of the clear blue sky & send it to the UDC.
-5. Alice takes a photo and proves her own claim: `It is NOT cloudy` to the UDC.
-8. Alice then proves to the UDC that the claim `It is raining` **implies** `It is cloudy`. Further, she shows that we've already decided that `It is NOT cloudy`--a decision which **contradicts** the Mallory's original claim. Because claims cannot contradict decisions, the UDC decides that Mallory's claim of `It is raining` is FALSE.
-10. Alice can now celebrate that this evil claim did not prevail! Woot!
-
-## OVM Formulations
-The following are a few "plain English" definitions for properties which will come in handy for different "layer 2" solutions.
-
-### 1) State Channels
-A state channel can be defined with the following data types & claim structure:
-
-#### Claim Structure:
-```
-There exists a SignedStateUpdate with all participant signatures `lastUpdate`, 
-AND
-all SignedStateUpdates which are signed by me have a nonce <= lastUpdate+1.
-```
-
-#### Contradictions
-To contradict this claim you can show either a signed transaction with a higher nonce, or you can claim that the signed message with all participants does not exist.
-
-
-### 2) Plasma
-Plasma is complex & so to save time this one is quite high level.
-
-In order to exit a "coin" at plasma commitment `b`, and coinID `c` we can use the following claim:
-
-#### Claim Structure
-```
-NOT: is_deprecated(b, c)
-AND
-For all coins such that `coinId == c`:
-    For all blocks such that `blockNumber < b`:
-        NOT:
-            (
-                    included_state_update(blockNumber, coinId)
-                AND
-                    NOT: is_deprecated(blockNumber, coinId)
-            )
-```
-
-#### Contradictions
-
-A plasma exit claim can be contradicted by showing an undeprecated (eg. "unspent") state in that coin’s history, or by showing that the state being exited is deprecated (eg. "spent").
-
-Notice how complex this dispute process is. This is *why* we came up with this language—-it got too hard to reason about!
-                
-### 3) Optimistic Rollup
-
-We can visualize block commitments as:
-
-![](https://i.imgur.com/0Qbl0W1.jpg)
-
-#### Single-Contract Transition Validity
-Now we have commitments, but we also want to determine the validity of the commitments. To do this, every time there is a commitment submitted, a cooresponding claim will be submitted to the UDC. The claim is of the form:
-
-> commitment #x is entirely valid
-
-To contradict the validity of a commitment you can prove any of the following:
-
-```
-1. The committed state transition is *invalid*. 
-   This is calculated with `isValidTransition(...) => boolean`
-2. The committed state "skipped" a valid transition.
-3. The committed state's parent is invalid.
-```
-
-![](https://i.imgur.com/eFz8Dzw.jpg)
-
-Note that a validity checkers for `isValidTransition(...)` are pluggable. Examples of validity checkers include:
-1. Custom subsets of the EVM
-2. WASM
-3. Full EVM as implemented today
-4. ...whatever! This is especially easy if we move to WASM as a base layer... but not required.
-
-#### Multi-Contract Transition
-Realisitically we want to make commitments which transition *multiple* seperate contracts. These transitions should be *entirely independent* of oneanother so that users only need to download the transitions of contracts they care about. 
-
-Note: this is the same problem "plasma cash" was created to solve.
-
-Making each contract their own state machine introduces a new problem--atomicity. We can solve this problem by making our transition validity coniditions more complex. In particular we:
-
-1. introduce "access lists" to our transactions
-2. change `isValidTransition(...)` to accept an array of prevTransitions & postStates
-3. alter our claim so that a) the transition must be included in *all* slots, and b) *any* of our prevTransitions being invalid invalidates the transition.
-
-![](https://i.imgur.com/YFlqRn5.jpg)
-
-
-# Adding a Cryptoeconomic Validity Game Part 2: Bonded Aggregators
-
-1. Aggregators must submit a bond of size `SECURITY_DEPOSIT`
-2. If an aggregator submits an *invalid* transition (as defined above), their bond is at risk & can be transfered to **anyone** who shows the invalid transition.
-3. Notice that:
-    A) Proving an invalid chain that `N` aggregators have built on top of rewards the prover with a security bond equal to `N*SECURITY_DEPOSIT`--naturally incentivizing "watchtowers".
-    B) No "finality threshold" must be encoded into the core protocol.
-    C) Aggregators can "transition" any sub-state machine, removing complexity around load balancing.
-    D) No "congestion" problem common to L2 protocols. New blocks can be submitted even while invalidity games are pending, & users can fork around invalid chains before L1 catches up.
-    E) Plasma & State Channels can be adjudicated **inside of a optimistic rollup chain**.
-    
-## Scalability!
-### With ETH1 Data availability
-The following is a little call-data calculation python script -- https://gist.github.com/karlfloersch/1bf6ab7871f41e3a5a921c0a007ad5c6
-
-#### ~5x Without EIP 2028
-Further optimizations can be made to reduce tx calldata size.
-
-#### ~24x With EIP 2028
-Once again these optimizations could be made.
+#### BLS Signature / SNARK-ed Signatures
+- ~400 TPS without EIP 2028
+- ~2000 TPS with EIP 2028 (coming in October 2019)
 
 ### With external availability oracles (eg. ETH2, Bitcoin Cash)
 #### ~linear in relation to the amount of throughput the availability oracle can handle.
-That's a lo
+That's a lot more than 2000 TPS!
 
-## That's Optimistic Rollup! Questions?
-I <3 Simplicity!
+## Optimistic Rollup vs Plasma
+Optimistic Rollup shares much in common with Plasma. Both use aggregators to commit to blocks on mainnet with a cryptoeconomic validity game ensuring safety. The sole divergence is the whether or not we have an availability receipt ensuring block availability.
 
-### Notes relating to to ETH2
-- Load balancing not a problem!
-- Stateless clients are great
+![](https://i.imgur.com/NWKhpfd.png)
 
-### What is the Optimistic Virtual Machine (OVM)
-A smarter wallet software which uses fork choice evaulation to derive the state from both on-chain state & local local information.
 
-![](https://i.imgur.com/v69v6lv.gif)
+The similarities between the two solutions allows for lots of shared infrastructure & code between the two constructions. In a mature layer 2 ecosystem it's likely that we will see rollup, plasma, and state channels all working together in the same client. Oh, have I mentioned the OVM? :smile: 
 
-Here is the math!
+## Yay Optimistic Rollup!
+Optimistic Rollup occupies a nice niche in the space of layer 2 constructions. It trades off some scalability for general purpose smart contracts, simplicity, & security. Plus being able to run secure smart contracts means that it can even be used to adjudicate other layer 2 solutions like plasma and state channels! Call it the "layer 1 of layer 2s."
 
-![](https://i.imgur.com/10mGsIp.png)
-
+Anyway, enough research -- time to implement a robust, comprehensive, and user friendly Ethereum layer 2! 😍
 
 ---
 
-For more information check out http://medium.com/plasma-group/introducing-the-ovm-db253287af50
+##### Special thanks to Vitalik Buterin for working through these ideas with me and for coming up with much of this. 
+
+##### Additionally, thank you Ben Jones for many ideas and Jinglan Wang & Kevin Ho for edits.
