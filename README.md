@@ -13,7 +13,7 @@ There are two major components:
 Do you want to...
 
 ### Learn more about the OVM?
-You've come to the right place... or at least you've come to the right place to navigate to the right place! Here are some resources to wet your OVM appetite:
+You've come to the right place... or at least you've come to the right place to navigate to the right place! Here are some resources to whet your OVM appetite:
 
 0. [Introducing the OVM](https://medium.com/plasma-group/introducing-the-ovm-db253287af50)
 0. [OVM Layer 2 Constructions](https://github.com/plasma-group/ovm/tree/master/specs#ovm-layer-2-constructions)
@@ -32,7 +32,7 @@ You'll find a group of folks that are objectively super duper cool and that, mor
 
 ### Implement the OVM?
 Yes please! First step is see if you'd like to contribute to any one of the major implementations:
-- Referene OVM implementation
+- Reference OVM implementation
 - Rust OVM implementation
 
 If you're looking for another 
@@ -40,10 +40,10 @@ If you're looking for another
 ### Build a scalable blockchain application?
 Soon! And without so much headache!
 
-Developers should not need to learn what a "markle tree" is in order to write a performant & secure application! Instead we should focus on application logic & make use of standard layer 2 backends.
+Developers should not need to learn what a "merkle tree" is in order to write a performant & secure application! Instead we should focus on application logic & make use of standard layer 2 backends.
 
 ### Integrate the OVM into your wallet?
-The OVM is under active development & at this point should not be integrated into any wallets. However, soon the OVM will provide wallets a common interface for querying & managing layer 2 assets. The OVM acts as a cryptoeconomic light clients for layer 2--enabling layer 2 transaction signing & asset managment.
+The OVM is under active development & at this point should not be integrated into any wallets. However, soon the OVM will provide wallets a common interface for querying & managing layer 2 assets. The OVM acts as a cryptoeconomic light clients for layer 2--enabling layer 2 transaction signing & asset management.
 
 ## Contributing
 Please submit PRs wherever possible! Chat on plamsa.build! Build an OVM! Build a suuuper cool scalable blockchain application! Be kind to people you meet! Don't listen to strangers on the internet!
